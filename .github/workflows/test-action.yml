@@ -7,12 +7,10 @@ jobs:
     runs-on: ubuntu-latest
     name: Initialize Variants Arrays
     outputs:
-      VARIANTS-LATEST: ${{ steps.mk-arrays.outputs.variants-latest }}
-      VARIANTS-NO-LATEST: ${{ steps.mk-arrays.outputs.variants-no-latest }}
-      VARIANTS-SINGLE: ${{ steps.mk-arrays.outputs.variants-single }}
+      VARIANTS-LATEST: ${{ steps.mk-arrays.outputs.VARIANTS-LATEST }}
+      VARIANTS-NO-LATEST: ${{ steps.mk-arrays.outputs.VARIANTS-NO-LATEST }}
+      VARIANTS-SINGLE: ${{ steps.mk-arrays.outputs.VARIANTS-SINGLE }}
     steps:
-      - uses: actions/checkout@v2
-
       - id: mk-arrays
         run: |
           declare -a variants
@@ -32,13 +30,12 @@ jobs:
     runs-on: ubuntu-latest
     name: Test Variants Action with Latest Tag
     continue-on-error: true
+    needs: initialize-variants
     env:
-      VARIANTS: ${{ jobs.initialize-variants.outputs.variants-latest }}
+      VARIANTS: ${{ needs.initialize-variants.outputs.VARIANTS }}
     outputs:
-      label_suffixes: ${{ steps.variants-latest.outputs.result }}
+      RESULT: ${{ steps.variants-latest.outputs.result }}
     steps:
-      - uses: actions/checkout@v2
-
       - id: variants-latest
         uses: jessenich/docker-variants-action@main
         with:
@@ -48,9 +45,10 @@ jobs:
           auto-append-latest: true
 
       - name: Test variants-latest
+        env:
+          labels: ${{ steps.variants-latest.outputs.labels }}
+          count: ${{ steps.variants-latest.outputs.count }}
         run: |
-          labels="${{ steps.variants-latest.outputs.labels }}"
-          count="${{ steps.variants-latest.outputs.count }}"
           jobresult= ;
 
           if "${labels[1]}" -ne "v1.0"; then
@@ -81,25 +79,25 @@ jobs:
     runs-on: ubuntu-latest
     name: Test Variants Action without Latest Tag
     continue-on-error: true
+    needs: initialize-variants
     env:
-      VARIANTS: ${{ jobs.initialize-variants.outputs.variants-no-latest }}
+      VARIANTS: ${{ needs.initialize-variants.outputs.VARIANTS-NO-LATEST }}
     outputs:
-      result: ${{ steps.variants-no-latest.outputs.result }}
+      RESULT: ${{ steps.variants-no-latest.outputs.result }}
     steps:
-      - uses: actions/checkout@v2
-
       - id: variants-no-latest
         uses: jessenich/docker-variants-action@main
         with:
-          variants-array: ${{ steps.mk-arrays.outputs.variants-no-latest }}
+          variants-array: ${{ env.VARIANTS }}
           label-name: test.label
           increment-labels: true
           auto-append-latest: true
 
       - name: Test variants-no-latest
+        env:
+          labels: ${{ steps.variants-no-latest.outputs.labels }}
+          count: ${{ steps.variants-no-latest.outputs.count }}
         run: |
-          labels="${{ env.VARIANTS }}"
-          count="${{ steps.variants-latest.outputs.count }}"
           jobresult= ;
 
           if "${labels[1]}" -ne "v1.0.9"; then
@@ -130,25 +128,25 @@ jobs:
     runs-on: ubuntu-latest
     name: Test Variants Action with Single Tag
     continue-on-error: true
+    needs: initialize-variants
     env:
-      VARIANTS: ${{ jobs.initialize-variants.outputs.variants-single }}
+      VARIANTS: ${{ needs.initialize-variants.outputs.VARIANTS-SINGLE }}
     outputs:
       result: ${{ steps.variants-single.outputs.result }}
     steps:
-      - uses: actions/checkout@v2
-
       - id: variants-single
         uses: jessenich/docker-variants-action@main
         with:
-          variants-array: ${{ steps.mk-arrays.outputs.variants-single }}
+          variants-array: ${{ env.VARIANTS }}
           label-name: test.label
           increment-labels: true
           auto-append-latest: false
 
       - name: Test variants-no-latest
+        env:
+          labels: ${{ steps.variants-latest.outputs.labels }}
+          count: ${{ steps.variants-single.outputs.count }}
         run: |
-          labels="${{ env.VARIANTS }}"
-          count="${{ steps.variants-single.outputs.count }}"
           jobresult= ;
 
           if "${labels[0]}" -ne "latest"; then
@@ -173,4 +171,31 @@ jobs:
           else
             echo "Unknown error occurred. Review logs."
             exit 2;
+          fi
+
+  assert-test-results:
+    runs-on: ubuntu-latest
+    name: Assert Results
+    needs:
+      - initialize-variants
+      - test-variants-with-latest
+      - test-variants-no-latest
+      - test-variants-single
+    continue-on-error: false
+    env:
+      with-latest: ${{ needs.test-variants-with-latest.outputs.RESULT }}
+      no-latest: ${{ needs.test-variants-no-latest.outputs.RESULT }}
+      single: ${{ needs.test-variants-single.outputs.RESULT }}
+    steps:
+      - name: Assert
+        id: assert
+        env:
+          with_latest: ${{ env.with-latest }}
+          no-latest: ${{ env.no-latest}}
+          single:  ${{ env.single }}
+        run: |
+          if "$with_latest" -eq "fail" || "$no-latest" -eq "fail" || "$single" -eq "fail"; then
+            exit 1;
+          else
+            exit 0;
           fi
