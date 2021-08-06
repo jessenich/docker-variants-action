@@ -1,0 +1,54 @@
+name: Get Docker Variant Labels
+description: Derives an array of strings (e.g. labels) based on the tag array supplied.
+inputs:
+  variants-array:
+    description: Array to derive labels from.
+    required: true
+  label-name:
+    description: String to prefix label with
+    required: true
+  increment-labels:
+    description: Whether the action should set multiple labels of the exact same string, or append a unique id to the end. e.g. maintainer[1]=jessenich, maintainer[2]=johnnyappleseed
+    required: false
+    default: "true"
+  auto-append-latest:
+    description: Choose whether the return array contains "latest" regardless of the input.
+    required: false
+    default: "true"
+outputs:
+  labels:
+    description: The array containing the derived labels
+    value: ${{ steps.variants.outputs.labels }}
+
+runs:
+  using: "composite"
+  steps:
+    - id: variants
+      run: |
+        labels=(  )
+        i=0;
+
+        for variant in "${{ inputs.variants-array[#] }}"; do
+          case "$1" in
+            latest)
+              if [ ! "${{ inputs.auto-append-latest" ]; then
+                if [ "${{ inputs.increment-labels" = "true" ]; then
+                  labels+=( "${{ inputs.label-name }}[$i]: latest" );
+                else
+                  labels+=( "${{ inputs.label-name }]: latest" );
+                fi
+              fi
+
+              shift;;
+
+            *)
+              labels+=( "${{ inputs.label-name }}[$i]: $variant" );
+              ((i=i+1));
+
+              shift;;
+          esac
+        done
+
+        echo "::set-output name=labels::${labels}";
+        echo "::set-output name=count::${labels[#]}"
+      shell: bash

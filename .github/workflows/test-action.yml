@@ -1,0 +1,176 @@
+name: Test Variants Action
+
+on: [push, workflow_dispatch]
+
+jobs:
+  initialize-variants:
+    runs-on: ubuntu-latest
+    name: Initialize Variants Arrays
+    outputs:
+      VARIANTS-LATEST: ${{ steps.mk-arrays.outputs.variants-latest }}
+      VARIANTS-NO-LATEST: ${{ steps.mk-arrays.outputs.variants-no-latest }}
+      VARIANTS-SINGLE: ${{ steps.mk-arrays.outputs.variants-single }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - id: mk-arrays
+        run: |
+          declare -a variants
+          variants=( latest v1.0 v1.0.9 v1.0.9-main )
+
+          declare -a variants_no_latest
+          variants_no_latest=( v1.0 v1.0.9 v1.0.9-main )
+
+          declare -a single_variant
+          single_variant=( latest )
+
+          echo "::set-output name=VARIANTS-LATEST::$variants"
+          echo "::set-output name=VARIANTS-NO-LATEST::$variants_no_latest"
+          echo "::set-output name=VARIANTS-SINGLE::$single_variant"
+
+  test-variants-with-latest:
+    runs-on: ubuntu-latest
+    name: Test Variants Action with Latest Tag
+    continue-on-error: true
+    env:
+      VARIANTS: ${{ jobs.initialize-variants.outputs.variants-latest }}
+    outputs:
+      label_suffixes: ${{ steps.variants-latest.outputs.result }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - id: variants-latest
+        uses: jessenich/docker-variants-action@main
+        with:
+          variants-array: ${{ env.VARIANTS }}
+          label-name: test.label
+          increment-labels: true
+          auto-append-latest: true
+
+      - name: Test variants-latest
+        run: |
+          labels="${{ steps.variants-latest.outputs.labels }}"
+          count="${{ steps.variants-latest.outputs.count }}"
+          jobresult= ;
+
+          if "${labels[1]}" -ne "v1.0"; then
+            echo "Incorrect label detected at index 1";
+            echo "Expected 'v1.0', got ${labels[1]} from ${labels[*]}";
+            jobresult="fail"
+          elif "${count}" -ne 4; then
+            echo "Incorrect return count";
+            echo "Count: ${count}, Expected: 4";
+            jobresult="fail"
+          else
+            echo "All checks succeeded, job passed."
+            jobresult="success"
+          fi
+
+          if "$jobresult" -eq "success"; then
+            echo "::set-output name=result::$jobresult";
+            exit 0;
+          elif "$jobresult" -eq "fail"; then
+            echo "::set-output name=result::$jobresult";
+            exit 1;
+          else
+            echo "Unknown error occurred. Review logs."
+            exit 2;
+          fi
+
+  test-variants-no-latest:
+    runs-on: ubuntu-latest
+    name: Test Variants Action without Latest Tag
+    continue-on-error: true
+    env:
+      VARIANTS: ${{ jobs.initialize-variants.outputs.variants-no-latest }}
+    outputs:
+      result: ${{ steps.variants-no-latest.outputs.result }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - id: variants-no-latest
+        uses: jessenich/docker-variants-action@main
+        with:
+          variants-array: ${{ steps.mk-arrays.outputs.variants-no-latest }}
+          label-name: test.label
+          increment-labels: true
+          auto-append-latest: true
+
+      - name: Test variants-no-latest
+        run: |
+          labels="${{ env.VARIANTS }}"
+          count="${{ steps.variants-latest.outputs.count }}"
+          jobresult= ;
+
+          if "${labels[1]}" -ne "v1.0.9"; then
+            echo "Incorrect label detected at index 1";
+            echo "Expected 'v1.0.9', got ${labels[1]}" from ${labels[*]}";
+            jobresult="fail"
+          elif "${count}" -ne 3; then
+            echo "Incorrect return count";
+            echo "Count: ${count}, Expected: 3";
+            jobresult="fail"
+          else
+            echo "All checks succeeded, job passed."
+            jobresult="success"
+          fi
+
+          if "$jobresult" -eq "success"; then
+            echo "::set-output name=result::$jobresult";
+            exit 0;
+          elif "$jobresult" -eq "fail"; then
+            echo "::set-output name=result::$jobresult";
+            exit 1;
+          else
+            echo "Unknown error occurred. Review logs."
+            exit 2;
+          fi
+
+  test-variants-single:
+    runs-on: ubuntu-latest
+    name: Test Variants Action with Single Tag
+    continue-on-error: true
+    env:
+      VARIANTS: ${{ jobs.initialize-variants.outputs.variants-single }}
+    outputs:
+      result: ${{ steps.variants-single.outputs.result }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - id: variants-single
+        uses: jessenich/docker-variants-action@main
+        with:
+          variants-array: ${{ steps.mk-arrays.outputs.variants-single }}
+          label-name: test.label
+          increment-labels: true
+          auto-append-latest: false
+
+      - name: Test variants-no-latest
+        run: |
+          labels="${{ env.VARIANTS }}"
+          count="${{ steps.variants-single.outputs.count }}"
+          jobresult= ;
+
+          if "${labels[0]}" -ne "latest"; then
+            echo "Incorrect label detected at index 0";
+            echo "Labels: ${labels[*]}";
+            jobresult="fail"
+          elif "${count}" -ne 1; then
+            echo "Incorrect return count";
+            echo "Count: ${count}, Expected: 1";
+            jobresult="fail"
+          else
+            echo "All checks succeeded, job passed."
+            jobresult="success"
+          fi
+
+          if "$jobresult" -eq "success"; then
+            echo "::set-output name=result::$jobresult";
+            exit 0;
+          elif "$jobresult" -eq "fail"; then
+            echo "::set-output name=result::$jobresult";
+            exit 1;
+          else
+            echo "Unknown error occurred. Review logs."
+            exit 2;
+          fi
