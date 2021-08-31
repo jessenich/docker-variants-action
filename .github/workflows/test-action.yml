@@ -53,7 +53,7 @@ jobs:
 
           if "${labels[1]}" -ne "v1.0"; then
             echo "Incorrect label detected at index 1";
-            echo "Expected 'v1.0', got ${labels[1]} from ${labels[*]}";
+            echo "Expected 'v1.0', got ${labels[1]} from ${labels[@]}";
             jobresult="fail"
           elif "${count}" -ne 4; then
             echo "Incorrect return count";
@@ -102,7 +102,7 @@ jobs:
 
           if "${labels[1]}" -ne "v1.0.9"; then
             echo "Incorrect label detected at index 1";
-            echo "Expected 'v1.0.9', got ${labels[1]}" from ${labels[*]}";
+            echo "Expected 'v1.0.9', got ${labels[1]}" from ${labels[@]}";
             jobresult="fail"
           elif "${count}" -ne 3; then
             echo "Incorrect return count";
@@ -151,7 +151,7 @@ jobs:
 
           if "${labels[0]}" -ne "latest"; then
             echo "Incorrect label detected at index 0";
-            echo "Labels: ${labels[*]}";
+            echo "Labels: ${labels[@]}";
             jobresult="fail"
           elif "${count}" -ne 1; then
             echo "Incorrect return count";
@@ -194,7 +194,7 @@ jobs:
           no-latest: ${{ env.no-latest}}
           single:  ${{ env.single }}
         run: |
-          if "$with_latest" -eq "fail" || "$no-latest" -eq "fail" || "$single" -eq "fail"; then
+          if [[ "${with_latest}" -eq "fail" ]] || [[ "${no-latest}" -eq "fail ]]" || [[ "${single]" -eq "fail" ]]; then
             exit 1;
           else
             exit 0;
